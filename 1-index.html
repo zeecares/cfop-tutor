@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CFOP from First Principles</title>
+<style>
+  :root {
+    --ink: #1c1e24; --muted: #5b6070; --accent: #0046ad; --accent2: #b71234;
+    --bg: #fafaf7; --card: #ffffff; --line: #e4e4dc; --soft: #f1f1ea;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+         background: var(--bg); color: var(--ink); line-height: 1.6; }
+  .layout { display: flex; min-height: 100vh; }
+  nav { width: 220px; flex: 0 0 220px; position: sticky; top: 0; height: 100vh; overflow: auto;
+        border-right: 1px solid var(--line); padding: 22px 14px; background: var(--card); }
+  nav h1 { font-size: 15px; line-height: 1.35; margin: 0 0 4px; }
+  nav .sub { font-size: 12px; color: var(--muted); margin-bottom: 18px; }
+  nav a { display: block; color: var(--ink); text-decoration: none; font-size: 13.5px; padding: 6px 8px;
+          border-radius: 6px; }
+  nav a:hover { background: var(--soft); }
+  nav a.group { margin-top: 12px; font-weight: 700; color: var(--accent); }
+  main { flex: 1; padding: 34px 40px 90px; max-width: 860px; }
+  h2 { font-size: 24px; margin: 52px 0 6px; padding-top: 14px; border-top: 1px solid var(--line); }
+  h2:first-of-type { border-top: 0; margin-top: 0; }
+  h3 { font-size: 17px; margin: 30px 0 4px; }
+  h4 { font-size: 14.5px; margin: 22px 0 2px; }
+  p { margin: 10px 0; }
+  .lede { font-size: 17px; color: var(--muted); }
+  .principle { background: #fff8e0; border: 1px solid #f0e3a8; border-radius: 10px; padding: 12px 16px; margin: 16px 0; }
+  .principle b { color: #7a5c00; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; margin: 14px 0; }
+  .movegrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 14px; margin: 16px 0; }
+  .movecard { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: center; }
+  .movecard h4 { margin: 2px 0 6px; font-size: 15px; }
+  .movecard p { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; text-align: left; }
+  .cubesvg { width: 100%; height: auto; display: block; }
+  figure { margin: 0; }
+  figcaption { font-size: 12px; color: var(--muted); text-align: center; margin-top: 6px; }
+  .pair { display: flex; align-items: center; gap: 10px; justify-content: center; }
+  .pair figure { flex: 1; }
+  .pairarrow { font-size: 22px; color: var(--muted); flex: 0 0 auto; }
+  .alg { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--soft);
+         border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; display: inline-block;
+         font-size: 14.5px; letter-spacing: .2px; margin: 6px 0; }
+  .casecard { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin: 16px 0; }
+  .casecard .row { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .casecard .row .diag { width: 170px; flex: 0 0 170px; }
+  .casecard .row .txt { flex: 1; min-width: 240px; }
+  .casecard .row .txt p { font-size: 14px; margin: 4px 0; }
+  table { border-collapse: collapse; margin: 14px 0; width: 100%; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; font-size: 13.5px; text-align: left; }
+  th { background: var(--soft); }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase;
+         border-radius: 5px; padding: 2px 7px; margin-right: 6px; }
+  .tag.b { background: #e3edff; color: var(--accent); }
+  .tag.i { background: #e8f6ec; color: #0a7a34; }
+  .tag.a { background: #fdeceb; color: var(--accent2); }
+  .tag.m { background: #f2e9fb; color: #6d28a8; }
+  dt { font-weight: 700; margin-top: 14px; }
+  dd { margin: 3px 0 0 0; color: #33363f; font-size: 14.5px; }
+  #glossary-filter { width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px;
+                     font-size: 14px; margin: 10px 0 4px; }
+  code { background: var(--soft); border-radius: 4px; padding: 1px 5px; font-size: 13px; }
+  .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 760px) { .twocol { grid-template-columns: 1fr; } nav { display: none; } main { padding: 20px; } }
+  .note { font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav>
+  <h1>CFOP from First Principles</h1>
+  <div class="sub">Learn to derive, not memorize</div>
+  <a href="#start">Start here</a>
+  <a class="group" href="#foundations">Foundations</a>
+  <a href="#pieces">Piece anatomy</a>
+  <a href="#centers">The center rule</a>
+  <a href="#notation">Move notation</a>
+  <a href="#reading">Reading diagrams</a>
+  <a href="#perms">What a move really is</a>
+  <a class="group" href="#method">The CFOP method</a>
+  <a href="#cross">1. Cross</a>
+  <a href="#f2l">2. F2L (pairs)</a>
+  <a href="#oll">3. OLL (orient)</a>
+  <a href="#pll">4. PLL (permute)</a>
+  <a class="group" href="#path">Learning path</a>
+  <a href="#practice">Practice and drills</a>
+  <a class="group" href="#glossary">Glossary</a>
+</nav>
+<main>
+<section id="start">
+  <h2>Start here</h2>
+  <p class="lede">This site teaches the CFOP speedcubing method the way you wanted to learn it: every idea built from
+  first principles, every term in the glossary, visuals wherever they help, and as little raw memorization as
+  possible. The goal is not to recall 119 algorithms. The goal is to understand what the moves do well enough that
+  you could work most of them out yourself.</p>
+  <div class="principle"><b>The bargain:</b> you can solve the cube with 0 memorized algorithms of understanding plus
+  a handful of short "triggers" your fingers learn on their own. Full CFOP has 41 F2L cases, 57 OLL cases and 21 PLL
+  cases. This site shows how those numbers collapse into a few ideas: three insertion patterns for F2L, two
+  orientation families for OLL, and one permutation machine (the commutator) for PLL.</div>
+  <p>How to use it: read Foundations once, slowly, with a cube in your hand. Then work through the four CFOP stages
+  in order. Whenever a word is unfamiliar, jump to the <a href="#glossary">Glossary</a> and come back. The
+  <a href="#path">Learning path</a> tells you what to drill and when you are ready to move on.</p>
+  <div class="twocol">
+    <div class="movecard"><h4>Isometric view</h4>
+      <div data-cube="iso"></div>
+      <p>The 3D view shows the Up, Front and Right faces. Used whenever we talk about turns.</p></div>
+    <div class="movecard"><h4>Net view</h4>
+      <div data-cube="net" data-labels="1"></div>
+      <p>The unfolded cube shows all six faces at once. Used to show the whole state.</p></div>
+  </div>
+</section>
+
+<section id="foundations">
+  <h2>Foundations</h2>
+
+  <h3 id="pieces">Piece anatomy: the cube is 20 pieces, not 54 stickers</h3>
+  <p>A solved-looking cube is made of three kinds of pieces, and each kind can only ever live in its own kind of
+  position:</p>
+  <ul>
+    <li><b>6 centers</b> - one sticker each. They are fixed to the core and only spin in place.</li>
+    <li><b>12 edges</b> - two stickers each. An edge can only ever be an edge.</li>
+    <li><b>8 corners</b> - three stickers each. A corner can only ever be a corner.</li>
+  </ul>
+  <div class="twocol">
+    <div class="movecard"><h4>Centers (highlighted)</h4>
+      <div data-cube="net" data-dim="centers-only"></div></div>
+    <div class="movecard"><h4>Edges (highlighted) - corners are the rest</h4>
+      <div data-cube="net" data-dim="edges-only"></div></div>
+  </div>
+  <div class="principle"><b>First principle 1:</b> you never move a sticker, you move a piece. When a face turns,
+  8 stickers change position but it is really 4 corners and 4 edges taking a ride together. Solving means sending
+  each of the 20 movable pieces to its one correct home, facing the right way.</div>
+
+  <h3 id="centers">The center rule: the color scheme never changes</h3>
+  <p>Because centers are fixed to the core, the white center is always opposite the yellow center, green is always
+  opposite blue, and red is always opposite orange. On a standard cube held with white on top and green facing you,
+  red is on the right. So every piece has exactly one home: the white-green edge belongs between the white and green
+  centers, forever. You never decide where a piece goes. The centers already decided.</p>
+
+  <h3 id="notation">Move notation: the whole language</h3>
+  <p>Every algorithm is written in six letters. A letter means: turn that face <b>one quarter turn clockwise, as if
+  you were looking straight at that face</b>. A letter with a prime (<code>'</code>) means counterclockwise. A letter
+  with <code>2</code> means a half turn (direction does not matter).</p>
+  <div class="movegrid">
+    <div class="movecard"><h4>R - right face</h4><div data-cube="iso" data-arrow="R" data-dim="R"></div>
+      <p>Clockwise looking at the right face. The front-right column travels up to the top.</p></div>
+    <div class="movecard"><h4>R' - right, inverted</h4><div data-cube="iso" data-arrow="R'" data-dim="R"></div>
+      <p>Counterclockwise. The front-right column travels down to the bottom.</p></div>
+    <div class="movecard"><h4>U - up face</h4><div data-cube="iso" data-arrow="U" data-dim="U"></div>
+      <p>Clockwise looking down at the top. The front top row slides to the left side.</p></div>
+    <div class="movecard"><h4>F - front face</h4><div data-cube="iso" data-arrow="F" data-dim="F"></div>
+      <p>Clockwise looking at the front. The bottom row of the top face moves to the right face.</p></div>
+    <div class="movecard"><h4>L - left face</h4><div data-cube="net" data-apply="L" data-dim="L"></div>
+      <p>Clockwise looking at the left face (net shows the result of one L). The lit strip is what moved.</p></div>
+    <div class="movecard"><h4>D / B - down and back</h4><div data-cube="net" data-apply="D" data-dim="D"></div>
+      <p>Same rule, seen from below and from behind. Result of one D shown. You rarely need these in CFOP.</p></div>
+  </div>
+  <h4>Three more letter families (you can learn these later)</h4>
+  <table>
+    <tr><th>Notation</th><th>Means</th><th>Example</th></tr>
+    <tr><td><code>Rw</code> (wide)</td><td>Turn the face plus the layer behind it, like a fat R. Same as turning R and the middle slice together.</td><td><code>Rw</code>, <code>Uw'</code></td></tr>
+    <tr><td><code>M</code>, <code>E</code>, <code>S</code> (slices)</td><td>Turn only a middle slice. M follows the L direction, E follows D, S follows F.</td><td><code>M2</code>, <code>S'</code></td></tr>
+    <tr><td><code>x</code>, <code>y</code>, <code>z</code> (rotations)</td><td>Do not turn a layer - re-grip the whole cube. x follows R, y follows U, z follows F.</td><td><code>y</code>, <code>x2</code></td></tr>
+  </table>
+  <div class="movecard" style="max-width:320px"><h4>y rotation: the whole cube follows U</h4>
+    <div data-cube="iso" data-arrow="U" data-dim="y"></div>
+    <p>After a y, the old right face is now your front. No piece changed position relative to any other - only your viewpoint did.</p></div>
+
+  <h3 id="reading">How to read the diagrams on this site</h3>
+  <ul>
+    <li>The standard color scheme is used everywhere: white opposite yellow, green opposite blue, red opposite orange.</li>
+    <li>Stage diagrams (Cross through PLL) are drawn in the standard solving orientation: <b>white on the bottom,
+    yellow on top</b>, so the last layer you are working on always faces up.</li>
+    <li>Faded stickers are pieces that do not matter for the idea being shown. Bright stickers are the ones to watch.</li>
+    <li>An arrow on a face means: turn that face in the arrow's direction.</li>
+    <li>Algorithm cards show the case first, then the moves. Every diagram on this site was generated by a real cube
+    simulator, so what you see is exactly what the moves produce.</li>
+  </ul>
+
+  <h3 id="perms">What a move really is (the idea behind every algorithm)</h3>
+  <p>One face turn moves 4 corners in a cycle and 4 edges in a cycle. Do the same turn four times and every piece is
+  home again: the turn has <b>order 4</b>. This single fact explains all of speedcubing math:</p>
+  <div class="card">
+    <p><b>Try it:</b> hold a solved cube and repeat <span class="alg">R U R' U'</span> slowly. After exactly 6
+    repetitions the cube is solved again. Every sequence of moves has a finite order - repeat it enough and you always
+    come home. Algorithms are not magic strings; they are loops with a known length.</p>
+  </div>
+  <p>An algorithm "works" when its loop moves almost everything home but leaves a small, useful change: three corners
+  swapped, two corners twisted, and so on. The art of CFOP is finding loops whose leftover change is exactly the
+  problem in front of you. In the <a href="#pll">PLL section</a> you will build one of these loops from scratch.</p>
+  <p>One more foundation for later: you cannot twist a single corner. Corner twists always balance out - the total
+  twist of all corners is always a multiple of one full turn. If one corner is twisted, another one is twisted too.
+  This is why OLL corner cases come in families, and why a flipped corner on a "solved" cube means someone took it apart.</p>
+</section>
+
+<section id="method">
+  <h2>The CFOP method</h2>
+  <p class="lede">CFOP solves the cube in four stages: <b>C</b>ross, <b>F</b>2L (first two layers), <b>O</b>LL
+  (orient the last layer), <b>P</b>LL (permute the last layer). It is the method used by nearly every top
+  speedcuber.</p>
+  <h3>Why this order? Because each stage shrinks the problem</h3>
+  <ul>
+    <li><b>Cross:</b> solve the 4 bottom edges. 8 pieces of the bottom layer - you place 4 of them. Intuition only, no algorithms.</li>
+    <li><b>F2L:</b> solve the 4 bottom corners together with the 4 middle edges, as 4 corner-edge pairs. The whole bottom two layers, done with a few repeating ideas.</li>
+    <li><b>OLL:</b> the top face is a mess of colors. Make it one solid color (orient every top piece), without caring yet which piece is where.</li>
+    <li><b>PLL:</b> the top face is solid but the pieces are in the wrong spots. Move them home (permute) without disturbing the solved two layers or the solid top.</li>
+  </ul>
+  <div class="principle"><b>First principle 2:</b> orientation before permutation. It is far easier to make every top
+  sticker face up first (a color problem) and only then shuffle pieces home (a position problem), because a solid top
+  face lets you read positions at a glance. That split is what makes the last layer learnable at all.</div>
+  <h3>The numbers, honestly</h3>
+  <table>
+    <tr><th>Stage</th><th>Full version</th><th>You actually need to start</th></tr>
+    <tr><td>Cross</td><td>no algorithms</td><td>pure intuition (this site teaches the planning habit)</td></tr>
+    <tr><td>F2L</td><td>41 cases</td><td>3 insertion ideas; the rest are setups you can derive</td></tr>
+    <tr><td>OLL</td><td>57 cases</td><td>2-look OLL: about 7 patterns from 2 idea families</td></tr>
+    <tr><td>PLL</td><td>21 cases</td><td>2-look PLL: 4 algorithms; or derive cycles with commutators</td></tr>
+  </table>
+  <p>The memorization path is: start with 2-look everything (roughly a dozen short algorithms total, most of which
+  you will understand rather than memorize), get fast and fluent, and only then absorb full OLL and PLL in small
+  batches if you want to. Many cubers stay at 2-look plus a handful of favorites and solve well under 30 seconds.</p>
+</section>
+
+<section id="cross">
+  <h2>Stage 1: Cross</h2>
+  <p class="lede">Goal: the four white edges on the bottom, each one also matched to its side center.</p>
+  <div class="casecard"><div class="row">
+    <div class="diag" data-cube="net" data-base="ll"></div>
+    <div class="txt">
+      <p><b>What "solved" means here:</b> look at the bottom face - all four white edge stickers are down. Now look at
+      the side faces: the bottom row of every side matches its center. An edge has two stickers, and both must be
+      right. A white edge with the wrong side color is not placed, it is parked.</p>
+      <p class="note">Diagrams from here on use the solving orientation: white bottom, yellow top.</p>
+    </div>
+  </div></div>
+  <h3>The principle: an edge has two stickers, so solve it in one move, not two</h3>
+  <p>Beginners put a white edge on the bottom face and then fix the side color as a second step. Instead, line the
+  edge's side sticker up with its center first, then drop it home with a single turn of that side face. Every cross
+  edge can be placed in one move once it is aligned - the whole skill of the cross is getting all four aligned at
+  the same time without knocking out the ones you already placed.</p>
+  <h3>A worked example</h3>
+  <p>Scramble: <span class="alg">R' F D'</span> - three white edges are disturbed. Watch each repair move place one
+  edge while leaving the placed ones alone:</p>
+  <div class="movegrid">
+    <div class="movecard"><h4>Scrambled</h4><div data-cube="net" data-base="ll" data-apply="R' F D'"></div>
+      <p>Find the white edges on the D face and side rows. Three are out.</p></div>
+    <div class="movecard"><h4>1. D</h4><div data-cube="net" data-base="ll" data-apply="R' F D' D"></div>
+      <p>Turning the bottom layer lines a white edge up under its own side center.</p></div>
+    <div class="movecard"><h4>2. F'</h4><div data-cube="net" data-base="ll" data-apply="R' F D' D F'"></div>
+      <p>Drops the aligned edge into the bottom and brings the next one into position.</p></div>
+    <div class="movecard"><h4>3. R</h4><div data-cube="net" data-base="ll" data-apply="R' F D' D F' R"></div>
+      <p>Last edge drops home. Cross done in 3 moves, and every side bottom row matches its center.</p></div>
+  </div>
+  <h3>How to practice (this is where speed is really born)</h3>
+  <ul>
+    <li><b>Plan before you touch.</b> Competitions give 15 seconds of inspection time before the clock starts, and top
+    solvers plan the entire cross in that window. Copy the habit: scramble, put the cube down, plan all four edges
+    mentally, then solve the cross without looking away or pausing.</li>
+    <li><b>Solve the cross on the bottom from day one.</b> It feels slower for a week. Then you can see the first F2L
+    pair while finishing the cross, which is the single biggest speed gain in all of CFOP.</li>
+    <li><b>Measure yourself in moves, not seconds.</b> A good cross takes 8 moves or fewer. Count yours. When you
+    regularly plan a 6-to-8 move cross in inspection, you are ready to move on.</li>
+  </ul>
+</section>
+
+<section id="f2l">
+  <h2>Stage 2: F2L - first two layers, as pairs</h2>
+  <p class="lede">Goal: the four white corners and the four middle-layer edges, inserted as four corner-edge pairs
+  into their four slots.</p>
+  <h3>The concepts (everything else is these words combined)</h3>
+  <ul>
+    <li><b>Slot:</b> the home of one corner plus its matching edge, between two side faces at the bottom. Four slots: front-right, front-left, back-right, back-left.</li>
+    <li><b>Pair:</b> a corner and its matching edge, connected so they drop into the slot together. Building the pair is 90% of F2L.</li>
+    <li><b>Keyhole:</b> an unsolved slot is a feature, not a problem - you can pass pieces through the empty space without disturbing anything solved.</li>
+  </ul>
+  <h3>The one trigger your fingers must learn</h3>
+  <div class="casecard"><div class="row">
+    <div class="diag" data-pair="R U R' U'" data-view="iso" data-base="ll" data-apply="R U R' U'" data-invert="1"></div>
+    <div class="txt">
+      <p><span class="alg">R U R' U'</span> - the "sexy move".</p>
+      <p><b>Why it works:</b> R lifts the front-right slot up into the top layer. U slides the top layer over. R' puts
+      the slot back down - but now whatever sat on top has been swapped into it. U' restores the top. Four moves, and
+      the slot has traded contents with the top layer while the rest of the cube is untouched. Every F2L insertion is
+      this idea or its mirror, <span class="alg">L' U' L U</span> (the lefty version).</p>
+      <p>Repeat it 6 times and the cube returns to solved - feel that loop once and you understand it forever.</p>
+    </div>
+  </div></div>
+  <h3>The three situations (all 41 cases are setups to these)</h3>
+  <div class="casecard"><div class="row">
+    <div class="diag" data-pair="U R U' R'" data-view="iso" data-base="ll" data-apply="U R U' R'" data-invert="1"></div>
+    <div class="txt">
+      <p><b>1. The pair is already built.</b> Corner and edge are connected on top. Slide the pair over its slot with a
+      U turn, then insert: <span class="alg">U R U' R'</span></p>
+      <p>Derivation: nothing to fix, so just do the slot trade from the right angle.</p>
+    </div>
+  </div></div>
+  <div class="casecard"><div class="row">
+    <div class="diag" data-pair="R U R' U'" data-view="iso" data-base="ll" data-apply="R U R' U'" data-invert="1"></div>
+    <div class="txt">
+      <p><b>2. Corner and edge are separate on top.</b> Use one sexy move to kick them into each other so they connect
+      into a pair, look, then insert as in case 1: <span class="alg">R U R' U'</span> then re-pair and insert.</p>
+      <p>Derivation habit: ask "how do I hide the corner (R), bring the edge next to it (U), and unhide (R')?"</p>
+    </div>
+  </div></div>
+  <div class="casecard"><div class="row">
+    <div class="diag" data-pair="R U R' U' U R U' R'" data-view="iso" data-base="ll" data-apply="R U R' U' U R U' R'" data-invert="1"></div>
+    <div class="txt">
+      <p><b>3. Something is stuck in the slot wrong.</b> An empty slot is a tool (keyhole), but a wrongly filled slot
+      is a trap. Eject it with one sexy move - that pops the stuck pieces onto the top - then solve the freed pair:
+      <span class="alg">R U R' U' U R U' R'</span></p>
+    </div>
+  </div></div>
+  <div class="principle"><b>First principle 3:</b> you do not memorize F2L cases, you interrogate them. For every
+  scramble of corner and edge, ask three questions: Is the pair built? If not, what one move connects them (usually
+  hiding the corner with R or R' first)? Where is the slot? The answer is always a short sequence of hide, connect,
+  insert. The 41 "cases" are just the 41 answers to those questions, and after a few weeks your hands answer on
+  their own.</div>
+  <h3>Finger tricks that matter here</h3>
+  <ul>
+    <li>Push R with your right wrist; push U and U' with your right index and right ring finger without re-gripping.</li>
+    <li>Never rotate the whole cube to avoid a lefty trigger - learn the mirror <span class="alg">L' U' L U</span> early.</li>
+    <li>Solve far pairs first and near pairs last - whatever remains unsolved is where you can still see.</li>
+  </ul>
+</section>
+
+<section id="oll">
+  <h2>Stage 3: OLL - make the top face one color</h2>
+  <p class="lede">Goal: every yellow sticker facing up. Positions do not matter yet - only orientation.</p>
+  <p>The full step has 57 cases. You will not learn 57 cases. The 2-look version splits OLL into two smaller problems:
+  first orient the <b>edges</b> (make a yellow cross on top), then orient the <b>corners</b>. Each half needs one idea
+  family.</p>
+  <h3>Look 1: orient the edges - three shapes</h3>
+  <p>Ignore corners completely and look at the yellow pattern on top. You will always see one of three shapes
+  (the yellow cross itself is the fourth - then you are done). Each has a fix built from the same idea: the
+  front face turn pulls edge stickers up into place.</p>
+  <div class="casecard"><div class="row">
+    <div class="diag" data-pair="F R U R' U' F'" data-view="iso" data-base="ll" data-apply="F R U R' U' F'" data-invert="1" data-dim="llSide"></div>
+    <div class="txt">
+      <p><b>The line.</b> A yellow bar across the middle. Hold it horizontal, then:
+      <span class="alg">F R U R' U' F'</span></p>
+      <p>Read it: F lifts the front edge slot, the sexy move R U R' U' fixes the middle edges, F' closes. It is the
+      F2L trigger wearing a front-face jacket.</p>
+    </div>
+  </div></div>
+  <div class="casecard"><div class="row">
+    <div class="diag" data-pair="F U R U' R' F'" data-view="iso" data-base="ll" data-apply="F U R U' R' F'" data-invert="1" data-dim="llSide"></div>
+    <div class="txt">
+      <p><b>The L (hook).</b> Two yellow edges making a corner. Hold it in the back-left as shown, then:
+      <span class="alg">F U R U' R' F'</span> - the mirror of the line fix.</p>
+    </div>
+  </div></div>
+  <div class="casecard"><div class="row">
+    <div class="diag" data-pair="F R U R' U' F' f R U R' U' f'" data-view="iso" data-base="ll" data-apply="F R U R' U' F' f R U R' U' f'" data-invert="1" data-dim="llSide"></div>
+    <div class="txt">
+      <p><b>The dot.</b> No yellow edges at all. Do the line fix, then the hook fix right after - the first creates
+      the shape the second one solves: <span class="alg">F R U R' U' F' f R U R' U' f'</span></p>
+      <p class="note">Small f is the wide version: turn the front two layers together.</p>
+    </div>
+  </div></div>
+  <h3>Look 2: orient the corners - the Sune family</h3>
+  <div class="casecard"><div class="row">
+    <div class="diag" data-pair="R U R' U R U2 R'" data-view="iso" data-base="ll" data-apply="R U R' U R U2 R'" data-invert="1" data-dim="llSide"></div>
+    <div class="txt">
+      <p><b>Sune:</b> <span class="alg">R U R' U R U2 R'</span></p>
+      <p><b>Why it works:</b> it is the sexy move with the last U' replaced by U2. That one change makes the loop
+      leave the top layer in place but twist corners in a balanced way - remember, twists always cancel out in total,
+      so Sune twists some corners one way and one corner back. Hold the cube so the twisted corner that needs
+      twisting clockwise is front-right (the "headlight" yellow sticker faces you on the left of the front), and
+      Sune finishes the yellow face.</p>
+      <p><b>Antisune</b> is the mirror: <span class="alg">R U2 R' U' R U' R'</span></p>
+    </div>
+  </div></div>
+  <p><b>The other corner cases:</b> every remaining corner pattern is solved by Sune or Antisune, at most twice, from
+  the right angle. The recognition trick: count the corners whose yellow faces up (0, 1, or 2 of them), and learn
+  where the side-facing yellow stickers point. That is a page of patterns, not 57 algorithms. Graduate to full OLL
+  later only if the second look starts costing you time you care about.</p>
+</section>
+
+<section id="pll">
+  <h2>Stage 4: PLL - move the last pieces home</h2>
+  <p class="lede">Goal: the top is solid yellow; now shuffle the top-layer pieces into place without breaking
+  anything below.</p>
+  <h3>The machine that builds every permutation: the commutator</h3>
+  <p>Here is the deepest idea on this site, and the one that turns memorization into derivation. Suppose you have a
+  little sequence A that does something useful to one small area - say, it swaps two corners inside the right layer
+  and messes up other things. Now do this:</p>
+  <div class="card">
+    <p><b>A, then B, then undo A, then undo B</b> - written <span class="alg">A B A' B'</span></p>
+    <p>A does its swap (plus collateral damage). B turns the top layer, carrying a different corner into the area A
+    affects. A' undoes A - but the area now holds a different piece, so the undo completes a three-corner cycle
+    instead of restoring. B' puts the top layer back. All the collateral damage canceled. The only survivors: a
+    clean 3-cycle of corners.</p>
+  </div>
+  <div class="casecard"><div class="row">
+    <div class="diag" data-pair="R U' L' U R' U' L U" data-view="net" data-apply="R U' L' U R' U' L U" data-invert="1"></div>
+    <div class="txt">
+      <p><b>Real example, derived not memorized:</b> <span class="alg">R U' L' U R' U' L U</span></p>
+      <p>This is A = <code>R U' L' U</code> (a four-move corner swap in the top), B = <code>R'</code>. Run it on a
+      solved cube and check: exactly three corners have moved (front-right, back-left, back-right on top), every edge
+      is untouched. Do it three times and the cube is solved again - order 3, exactly as a 3-cycle demands.</p>
+      <p>Change A and B and you manufacture any cycle you need. This is where PLL algorithms come from.</p>
+    </div>
+  </div></div>
+  <p><b>Conjugates</b> complete the toolkit: if the pieces you want to cycle are not in the right places, do a setup
+  move S that parks them there, run your commutator, then undo S. Setup - work - unsetup. Nearly all 21 PLL
+  algorithms are a commutator or a conjugate of one.</p>
+  <h3>How to recognize a PLL case</h3>
+  <p>With the top solid, look at the side faces of the top layer. You are hunting for patterns:</p>
+  <ul>
+    <li><b>Headlights:</b> two corner stickers of the same color side by side on one face.</li>
+    <li><b>Blocks:</b> a solved 2x1 chunk (corner plus edge matching) - a finished piece of the layer.</li>
+    <li><b>Bars:</b> three matching stickers in a row.</li>
+  </ul>
+  <p>Count headlights and blocks on all four sides and the case family is usually decided before you touch the cube.</p>
+  <h3>2-look PLL: four algorithms cover everything</h3>
+  <div class="casecard"><div class="row">
+    <div class="diag" data-pair="R U R' U' R' F R2 U' R' U' R U R' F'" data-view="iso" data-base="ll" data-apply="R U R' U' R' F R2 U' R' U' R U R' F'" data-invert="1" data-dim="llSide"></div>
+    <div class="txt">
+      <p><b>Step 1 - place the corners: the T-perm.</b>
+      <span class="alg">R U R' U' R' F R2 U' R' U' R U R' F'</span></p>
+      <p>It swaps the two right-side top corners (plus two edges, which step 2 repairs). Rule: if any face shows
+      headlights, put the headlights on your left and run it - corners land. If no face has headlights, run it once
+      from anywhere to create headlights, then do it properly. It is the sexy move, an F turn, and a mirror -
+      you already know its bones.</p>
+    </div>
+  </div></div>
+  <div class="casecard"><div class="row">
+    <div class="diag" data-pair="R U' R U R U R U' R' U' R2" data-view="iso" data-base="ll" data-apply="R U' R U R U R U' R' U' R2" data-invert="1" data-dim="llSide"></div>
+    <div class="txt">
+      <p><b>Step 2 - place the edges: the U-perms.</b> Three edges cycle while one stays home:
+      <span class="alg">R U' R U R U R U' R' U' R2</span> or its mirror
+      <span class="alg">R2 U R U R' U' R' U' R' U R'</span></p>
+      <p>Find the one solved edge (a full bar on one side), put that side at the back, and run the version that
+      cycles the other three the right way. Wrong direction? Run it again - a 3-cycle done twice is the reverse
+      cycle.</p>
+    </div>
+  </div></div>
+  <p>Two more edge cases exist, and both are double swaps, so each is its own inverse:</p>
+  <div class="twocol">
+    <div class="movecard"><h4>H-perm: opposite edges swap</h4>
+      <div data-pair="M2 U M2 U2 M2 U M2" data-view="iso" data-base="ll" data-apply="M2 U M2 U2 M2 U M2" data-invert="1" data-dim="llSide"></div>
+      <p><span class="alg">M2 U M2 U2 M2 U M2</span> - pure middle-slice work.</p></div>
+    <div class="movecard"><h4>Z-perm: adjacent edges swap</h4>
+      <div data-pair="M2 U M U2 M2 U2 M U' M2" data-view="iso" data-base="ll" data-apply="M2 U M U2 M2 U2 M U' M2" data-invert="1" data-dim="llSide"></div>
+      <p><span class="alg">M2 U M U2 M2 U2 M U' M2</span></p></div>
+  </div>
+  <h3>Master track: read four famous PLLs as commutators</h3>
+  <p>Once the machine clicks, the classic algorithms stop being strings and start being stories. Work these out on a
+  solved cube and watch which pieces move:</p>
+  <table>
+    <tr><th>Name</th><th>Algorithm</th><th>What it does / how to read it</th></tr>
+    <tr><td>T-perm</td><td><code>R U R' U' R' F R2 U' R' U' R U R' F'</code></td><td>Swaps the two right corners and two right edges. Sexy move, F-jacket, mirror.</td></tr>
+    <tr><td>J-perm</td><td><code>R U R' F' R U R' U' R' F R2 U' R' U'</code></td><td>Same corner swap as T, different edge pair - spot the reordered triggers.</td></tr>
+    <tr><td>Y-perm</td><td><code>F R U' R' U' R U R' F' R U R' U' R' F R F'</code></td><td>Diagonal corner swap. Two F-jacketed triggers back to back.</td></tr>
+    <tr><td>A-perm</td><td><code>x R' U R' D2 R U' R' D2 R2 x'</code></td><td>A pure corner 3-cycle: a commutator hiding inside an x rotation. Derivable from the machine above.</td></tr>
+  </table>
+  <p class="note">The remaining PLLs (R, F, V, N, G, E families) are the same ideas with longer setups. Learn them in
+  batches of two or three only after 2-look is automatic.</p>
+</section>
+
+<section id="path">
+  <h2>Learning path: beginner to master</h2>
+  <h3><span class="tag b">Beginner</span> Weeks 1-3 - own the language</h3>
+  <ul>
+    <li>Notation fluency: read any algorithm and execute it without translating letter by letter.</li>
+    <li>Cross: intuitive, planned during inspection, on the bottom, under 8 moves.</li>
+    <li>F2L: the three situations, solved slowly with zero memorized cases. Deliberate "hide, connect, insert" out loud.</li>
+    <li>Finish with 2-look OLL and 2-look PLL. Full solves, no timer yet. Readiness check: 20 solves in a row with no stage ever stumping you.</li>
+  </ul>
+  <h3><span class="tag i">Intermediate</span> Months 1-3 - fluency</h3>
+  <ul>
+    <li>Lookahead: while inserting one pair, your eyes are already finding the next. Drill: solve F2L at a fixed slow tempo with no pauses - smoothness first, speed follows.</li>
+    <li>Cross plus first pair planned together in inspection.</li>
+    <li>Finger tricks: sexy move and its mirror without re-gripping; U pushes with both index fingers.</li>
+    <li>Readiness check: average of 12 solves under 45 seconds with 2-look.</li>
+  </ul>
+  <h3><span class="tag a">Advanced</span> Months 3-9 - efficiency</h3>
+  <ul>
+    <li>Full PLL (21 cases) in batches; instant recognition from two sides.</li>
+    <li>F2L from the back and left slots without cube rotations; keyhole inserts.</li>
+    <li>Start absorbing full OLL by shape family (squares, lightning bolts, the Sune family first).</li>
+    <li>Readiness check: sub-25 average, cross solved blind every time, no regrips in triggers.</li>
+  </ul>
+  <h3><span class="tag m">Master</span> Ongoing - derive, do not recall</h3>
+  <ul>
+    <li>Commutator fluency: given any three misplaced pieces, construct a working 3-cycle on the spot with the A B A' B' machine plus a setup move.</li>
+    <li>Algorithm forensics: take any algorithm from a cheat sheet, run it on a solved cube, and explain which pieces it moves and why the collateral cancels. If you can teach it, you own it.</li>
+    <li>Solve analysis: reconstruct your slow solves, find the wasted moves (most are in F2L), and set one efficiency goal per week.</li>
+    <li>Readiness check: you can invent a valid (if inelegant) solution to any PLL case without looking anything up.</li>
+  </ul>
+</section>
+
+<section id="practice">
+  <h2>Practice and drills</h2>
+  <table>
+    <tr><th>Drill</th><th>How</th><th>Move on when</th></tr>
+    <tr><td>Blind cross</td><td>Plan the cross in inspection, close your eyes, execute.</td><td>8 moves or fewer, 10 times in a row</td></tr>
+    <tr><td>Metronome F2L</td><td>Solve pairs at a slow steady tempo, no pauses between pairs.</td><td>3 minutes of unbroken lookahead</td></tr>
+    <tr><td>Trigger reps</td><td>Sexy move and mirrors, 6-rep loops (cube returns solved - instant error check).</td><td>Smooth at ~2 seconds per rep</td></tr>
+    <tr><td>OLL recognition</td><td>Scramble top only; name the edge shape and corner count before solving.</td><td>Name it in under 2 seconds</td></tr>
+    <tr><td>PLL recognition</td><td>Scramble with a random PLL; call headlights and blocks, then the case.</td><td>Correct from two sides, under 3 seconds</td></tr>
+    <tr><td>Commutator lab</td><td>Pick any 3 top corners; build a cycle for them from scratch.</td><td>Three successes in one sitting</td></tr>
+  </table>
+  <p>Timing yourself: any phone stopwatch works. Log an average of 12 once a week - the trend matters more than any
+  single solve.</p>
+</section>
+
+<section id="glossary">
+  <h2>Glossary</h2>
+  <input id="glossary-filter" type="text" placeholder="Filter terms...">
+  <dl>
+    <dt>Algorithm</dt><dd>A written sequence of moves that produces a specific, small change (like a 3-cycle) while leaving everything else solved.</dd>
+    <dt>AUF (adjust U face)</dt><dd>A U, U' or U2 turn done before or after an algorithm to line the top layer up with the rest of the cube.</dd>
+    <dt>Center</dt><dd>The one-sticker piece at the middle of each face. Fixed to the core, so it defines the face's color permanently.</dd>
+    <dt>Commutator</dt><dd>The pattern A B A' B': do, setup, undo, un-setup. The collateral effects cancel and a clean small cycle survives. The engine behind most PLL algorithms.</dd>
+    <dt>Conjugate (setup moves)</dt><dd>The pattern S A S': park the target pieces where algorithm A can reach them, run A, then undo the parking move.</dd>
+    <dt>Corner</dt><dd>A three-sticker piece. The cube has 8. A corner can only ever occupy a corner position.</dd>
+    <dt>Cross</dt><dd>CFOP stage 1: the four bottom edges solved with their side colors matched.</dd>
+    <dt>Edge</dt><dd>A two-sticker piece. The cube has 12. An edge can only ever occupy an edge position.</dd>
+    <dt>F2L (first two layers)</dt><dd>CFOP stage 2: solving the four bottom corners and four middle edges as corner-edge pairs.</dd>
+    <dt>Finger tricks</dt><dd>Executing moves with finger pushes instead of whole-hand regrips, so triggers flow without pauses.</dd>
+    <dt>Headlights</dt><dd>Two same-colored corner stickers side by side on one side of the top layer. A key PLL recognition pattern.</dd>
+    <dt>Inspection</dt><dd>The 15 seconds competitions allow you to study the scrambled cube before the clock starts. Use it to plan the whole cross.</dd>
+    <dt>Keyhole</dt><dd>Using an empty (unsolved) slot as working space to pass pieces through without disturbing solved ones.</dd>
+    <dt>Last layer (LL)</dt><dd>The top layer when solving with the cross on the bottom. The subject of OLL and PLL.</dd>
+    <dt>Lookahead</dt><dd>Tracking the next pieces with your eyes while your hands finish the current step. The main source of speed after algorithms.</dd>
+    <dt>Move order</dt><dd>How many times you must repeat a move sequence to return to the starting state. A face turn has order 4; the sexy move has order 6.</dd>
+    <dt>OLL (orientation of the last layer)</dt><dd>CFOP stage 3: making the top face a single color. 57 cases in full; about 7 patterns in the 2-look version.</dd>
+    <dt>Orientation</dt><dd>Which way a piece is facing, independent of where it sits. A corner has 3 orientations, an edge has 2.</dd>
+    <dt>Pair</dt><dd>A corner connected to its matching edge, ready to be inserted into a slot as one unit.</dd>
+    <dt>Permutation</dt><dd>Which piece sits where, independent of which way it faces. PLL is a pure permutation step.</dd>
+    <dt>PLL (permutation of the last layer)</dt><dd>CFOP stage 4: moving the top-layer pieces home after the top face is solid. 21 cases in full; 4 algorithms in the 2-look version.</dd>
+    <dt>Prime (') </dt><dd>A suffix meaning counterclockwise: R' is R backwards. Also called inverse.</dd>
+    <dt>Scramble</dt><dd>A random sequence used to mix the cube, or the mixed state itself.</dd>
+    <dt>Sexy move</dt><dd>R U R' U' - the four-move trigger behind most F2L inserts and many OLL/PLL algorithms. Six repetitions return the cube to solved.</dd>
+    <dt>Sledgehammer</dt><dd>R' F R F' - the other common F2L/OLL trigger, the sexy move's front-face cousin.</dd>
+    <dt>Slice moves (M, E, S)</dt><dd>Turns of the middle layers only. M follows L's direction, E follows D's, S follows F's. Used in H and Z perms and some F2L tricks.</dd>
+    <dt>Slot</dt><dd>The paired home of one bottom corner and its middle edge. There are four; unsolved ones are working space (see keyhole).</dd>
+    <dt>Sune / Antisune</dt><dd>R U R' U R U2 R' and its mirror. Corner-orientation algorithms that cover the entire 2-look OLL corner step between them.</dd>
+    <dt>TPS (turns per second)</dt><dd>Raw turning speed. It buys you almost nothing without lookahead; fluency first, TPS follows.</dd>
+    <dt>Trigger</dt><dd>A short move sequence your fingers run as one gesture, like the sexy move. Algorithms are memorized as chains of triggers, not letters.</dd>
+    <dt>Wide move (Rw, Uw...)</dt><dd>A face turn that drags the neighboring inner layer with it. Sometimes written with lowercase letters (r, u).</dd>
+    <dt>x, y, z rotations</dt><dd>Re-gripping the whole cube in the direction of R, U, or F respectively. Not layer turns - they only change what you call front.</dd>
+    <dt>2-look OLL / 2-look PLL</dt><dd>Splitting a last-layer stage into two smaller sub-steps so a handful of algorithms covers every case.</dd>
+  </dl>
+</section>
+</main>
+</div>
+<script src="cube.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
